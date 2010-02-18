@@ -6,97 +6,104 @@ describe SlippersParser do
   before(:each) do
     @parser = SlippersParser.new
   end
-  
+
   it "should return the string unparsed when there are no keywords in it" do
-    @parser.parse('').eval(nil).should eql('')
-    @parser.parse('  ').eval(nil).should eql('  ')
-    @parser.parse('this should be returned unchanged').eval.should eql('this should be returned unchanged')
-    @parser.parse(' this should be returned unchanged ').eval.should eql(' this should be returned unchanged ')
-    @parser.parse('this should be 1234567890 ').eval.should eql('this should be 1234567890 ')
-    @parser.parse('this should be abc1234567890 ').eval.should eql('this should be abc1234567890 ')
-    @parser.parse('this should be !@¬£%^&*()').eval.should eql('this should be !@¬£%^&*()')
+    @parser.should parse('').and_eval(nil).to('')
+    @parser.should parse('  ').and_eval(nil).to('  ')
+    @parser.should parse('this should be returned unchanged').and_eval.to('this should be returned unchanged')
+    @parser.should parse(' this should be returned unchanged ').and_eval.to(' this should be returned unchanged ')
+    @parser.should parse('this should be 1234567890 ').and_eval.to('this should be 1234567890 ')
+    @parser.should parse('this should be abc1234567890 ').and_eval.to('this should be abc1234567890 ')
+    @parser.should parse('this should be !@¬£%^&*()').and_eval.to('this should be !@¬£%^&*()')
   end
   
   it 'should find the keyword within the delimiters' do
     message = OpenStruct.new({:message => 'the message', :message2 => 'the second message', :name => 'fred', :full_name => 'fred flinstone'})
-    @parser.parse('$message$').eval(message).should eql('the message')
-    @parser.parse('$message$ for $name$').eval(message).should eql('the message for fred')
-    @parser.parse('we want to find $message$').eval(message).should eql('we want to find the message')
-    @parser.parse('$message$ has spoken').eval(message).should eql('the message has spoken')
-    @parser.parse('Yes! $message$ has spoken').eval(message).should eql('Yes! the message has spoken')
-    @parser.parse('Yes! $full_name$ has spoken').eval(message).should eql('Yes! fred flinstone has spoken')
-    @parser.parse('Yes! $message2$ has spoken').eval(message).should eql('Yes! the second message has spoken')
-    @parser.parse('Yes! "$message2$" has spoken').eval(message).should eql('Yes! "the second message" has spoken')
-    @parser.parse('$$').eval(message).should eql('')
+    @parser.should parse('$message$').and_eval(message).to('the message')
+    @parser.should parse('$message$ for $name$').and_eval(message).to('the message for fred')
+    @parser.should parse('we want to find $message$').and_eval(message).to('we want to find the message')
+    @parser.should parse('$message$ has spoken').and_eval(message).to('the message has spoken')
+    @parser.should parse('Yes! $message$ has spoken').and_eval(message).to('Yes! the message has spoken')
+    @parser.should parse('Yes! $full_name$ has spoken').and_eval(message).to('Yes! fred flinstone has spoken')
+    @parser.should parse('Yes! $message2$ has spoken').and_eval(message).to('Yes! the second message has spoken')
+    @parser.should parse('Yes! "$message2$" has spoken').and_eval(message).to('Yes! "the second message" has spoken')
+    @parser.should_not parse('$$')
   end
   
   it 'should not match on escaped delimiters' do
-    @parser.parse('stuff \$notmatched\$').eval(stub(:nothing)).should eql('stuff $notmatched$')
+    @parser.should parse('stuff \$notmatched\$').and_eval(stub(:nothing)).to('stuff $notmatched$')
   end
   
   it "should render a list of objects" do
     people = [OpenStruct.new({:name => 'fred'}), OpenStruct.new({:name => 'barney'}) ]
-    @parser.parse('this is $name$').eval(people).should eql("this is fredbarney")
+    @parser.parse('this is $name$').eval(people).should eql('this is fredbarney')
+    @parser.should parse('this is $name$').and_eval(people, nil).to("this is fredbarney")
   end
   
   it "should render the default string when the attribute cannot be found on the object to render and there is no template group" do  
     Slippers::Engine::DEFAULT_STRING.should eql('') 
-    @parser.parse("This is the $adjective$ template with $message$.").eval(OpenStruct.new).should eql("This is the  template with .")
-    @parser.parse("$not_me$").eval(stub()).should eql('')
+    @parser.should parse("This is the $adjective$ template with $message$.").and_eval(OpenStruct.new).to("This is the  template with .")
+    @parser.should parse("$not_me$").and_eval(stub()).to('')
   end  
   
   it "should render the default string of the template group when the attribute cannot be found on the object to render" do  
     template_group = Slippers::TemplateGroup.new(:default_string => "foo" )
     template_group.default_string.should eql('foo')
-    @parser.parse("$not_me$").eval(stub(), template_group).should eql('foo')
+    @parser.should parse("$not_me$").and_eval(stub(), template_group).to('foo')
   end
   
   it "should convert attribute to string" do
     fred = OpenStruct.new({:name => 'fred', :dob => DateTime.new(1983, 1, 2)})
     template_group = Slippers::TemplateGroup.new(:templates => {:date => Slippers::Engine.new('$year$')} )
-    @parser.parse("This is $name$ who was born in $dob:date()$").eval(fred, template_group).should eql('This is fred who was born in 1983')
+    @parser.should parse("This is $name$ who was born in $dob:date()$").and_eval(fred, template_group).to('This is fred who was born in 1983')
   end
 
   it "should render a hash" do
     hash_object = {:title => 'Domain driven design', :author => 'Eric Evans', :find => 'method on a hash'}
-    @parser.parse("should parse $title$ by $author$").eval(hash_object).should eql("should parse Domain driven design by Eric Evans")
-    @parser.parse("should parse a symbol before a $find$").eval(hash_object).should eql('should parse a symbol before a method on a hash')
+    @parser.should parse("should parse $title$ by $author$").and_eval(hash_object).to("should parse Domain driven design by Eric Evans")
+    @parser.should parse("should parse a symbol before a $find$").and_eval(hash_object).to('should parse a symbol before a method on a hash')
   end
 
   it "should render a symbol on a hash before its methods" do
     hash_object = {:find => 'method on a hash'}
-    @parser.parse("should parse a symbol before a $find$").eval(hash_object).should eql('should parse a symbol before a method on a hash')
-    @parser.parse("should still render the method $size$").eval(hash_object).should eql('should still render the method 1')
+    @parser.should parse("should parse a symbol before a $find$").and_eval(hash_object).to('should parse a symbol before a method on a hash')
+    @parser.should parse("should still render the method $size$").and_eval(hash_object).to('should still render the method 1')
   end
-  
-  it 'should return an empty string if the template is not correctly formed' do
-    @parser.parse("$not_properly_formed").should eql(nil)
+
+  it "should render a hash symbol containing an embedded keyword" do
+    hash_object = {:modifier => 'mod'}
+    @parser.should parse("$modifier$").and_eval(hash_object).to('mod')
+  end
+
+  it 'should not parse if the template is not correctly formed' do
+    @parser.should_not parse("$not_properly_formed")
   end  
   
   it 'should use the specified expression options to render list items' do
-    @parser.parse('$list; null="-1", separator=", "$').eval(:list => [1,2,nil,3]).should eql("1, 2, -1, 3")
-    @parser.parse('$list; separator=", "$').eval(:list => [1,2,3]).should eql("1, 2, 3")
-    @parser.parse('$list; separator="!!"$').eval(:list => [1,2,3,nil]).should eql("1!!2!!3")
-    @parser.parse('$list; null="-1"$').eval(:list => [1,nil,3]).should eql("1-13")
+    @parser.should parse('$list; null="-1", separator=", "$').and_eval(:list => [1,2,nil,3]).to("1, 2, -1, 3")
+    @parser.should parse('$list; separator=", "$').and_eval(:list => [1,2,3]).to("1, 2, 3")
+    @parser.should parse('$list; separator="!!"$').and_eval(:list => [1,2,3,nil]).to("1!!2!!3")
+    @parser.should parse('$list; null="-1"$').and_eval(:list => [1,nil,3]).to("1-13")
   end
   
   it 'should conditionally parse some text' do
-    @parser.parse("$if(greeting)$ Hello $end$").eval(:greeting => true).should eql(" Hello ")
-    @parser.parse("$if(greeting)$ Hello $end$").eval(:greeting => true).should eql(" Hello ")
-    @parser.parse("$if(greeting)$ Hello $end$").eval(:greeting => false).should eql("")
-    @parser.parse("$if(greeting)$ Hello $end$").eval(:greeting => nil).should eql("")
-    @parser.parse("$if(greeting)$Hello$else$Goodbye$end$").eval(:greeting => true).should eql("Hello")
-    @parser.parse("$if(greeting)$ Hello $else$ Goodbye $end$").eval(:greeting => false).should eql(" Goodbye ")
-    @parser.parse("$if(greeting)$ Hello $end$").eval(:greetingzzzz => true).should eql("")
-    @parser.parse("$if(greeting)$ $greeting$ $end$").eval(:greeting => 'Hi').should eql(" Hi ")
+    @parser.should parse("$if(greeting)$ Hello $end$").and_eval(:greeting => true).to(" Hello ")
+    @parser.should parse("$if(greeting)$ Hello $end$").and_eval(:greeting => false).to("")
+    @parser.should parse("$if(greeting)$ Hello $end$").and_eval(:greeting => nil).to("")
+    @parser.should parse("$if(greeting)$Hello$else$Goodbye$end$").and_eval(:greeting => true).to("Hello")
+    @parser.should parse("$if(greeting)$ Hello $else$ Goodbye $end$").and_eval(:greeting => false).to(" Goodbye ")
+    @parser.should parse("$if(greeting)$ Hello $end$").and_eval(:greetingzzzz => true).to("")
+    @parser.should parse("$if(show)$$if(greeting)$ $greeting$ $end$$end$").and_eval(:show => true, :greeting => 'Hello').to(' Hello ')
   end
 
   it 'should conditionally parse a template' do
-    @parser.parse("$if(greeting)$ $greeting$ $end$").eval(:greeting => 'Hi').should eql(" Hi ")
-    @parser.parse("$if(greeting)$$greeting$ $else$ Nothing to see here $end$").eval(:greeting => 'Hi').should eql("Hi ")
-    @parser.parse("$if(greeting)$$greeting$ $else$ Nothing to see here $end$").eval(:greeting => nil).should eql(" Nothing to see here ")
+    @parser.should parse("$if(greeting)$ $greeting$ $end$").and_eval(:greeting => 'Hi').to(" Hi ")
+    @parser.should parse("$if(greeting)$$greeting$ $else$ Nothing to see here $end$").and_eval(:greeting => 'Hi').to("Hi ")
   end
 
+  it 'should parse templates in nested conditionals' do
+    @parser.should parse("$if(greeting)$$greeting$ $else$ Nothing to see here $end$").and_eval(:greeting => nil).to(" Nothing to see here ")
+  end
 end
 
 

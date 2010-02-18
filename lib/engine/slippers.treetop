@@ -1,31 +1,37 @@
 grammar Slippers
-	
-  rule expression
-   before:some_text expression_to_render space after:expression <ExpressionNode> / some_text
+
+  rule template
+    element* {
+      def eval(object_to_render=nil, template_group=nil)
+        elements.inject('') do |rendered, item|
+          rendered + item.eval(object_to_render, template_group)
+        end
+      end
+    }
   end
-  
-  rule expression_to_render 
-    conditional_template / templated_expression
+
+  rule element
+    if_stat / expr_tag / text
   end
-  
-  rule templated_expression
-    delimiter foo delimiter <TemplatedExpressionNode>
+
+  rule expr_tag
+    !("$end$" / "$else$") delimiter expr delimiter {
+      def eval(object_to_render, template_group)
+        expr.eval(object_to_render, template_group)
+      end
+    }
   end
-  
-  rule foo
-    apply_attribute_to_template / template / expression_option / attribute
+
+  rule expr
+    apply_attribute_to_template / call / expression_option / attribute
   end
   
   rule apply_attribute_to_template 
-    attribute apply_op template <ApplyAttributeToTemplateNode>
+    attribute apply_op call <ApplyAttributeToTemplateNode>
   end
   
-  rule template
-    known_template / anonymous_template
-  end
-  
-  rule known_template
-    template_path brackets <TemplateNode>
+  rule call
+    template_path brackets <TemplateNode> / anonymous_template
   end
   
   rule anonymous_template
@@ -33,20 +39,26 @@ grammar Slippers
   end
 	  
   rule attribute
-  	 anything_except_keywords <AttributeToRenderNode>
+  	 id <AttributeToRenderNode>
   end
   
   rule expression_option
-    attribute:anything_except_keywords ';' space null_subtitute:('null="' nulls:anything_except_keywords '"')? (",")? space separator_value:('separator="' seps:anything_except_keywords '"' )?  <AttributeWithExpressionOptionNode>
+    attribute ';'
+    space null_subtitute:('null="' nulls:anything_except_keywords '"')? (",")?
+    space separator_value:('separator="' seps:anything_except_keywords '"' )?
+    <AttributeWithExpressionOptionNode>
   end
   
-  rule conditional_template
-    "$if(" if_clause:attribute ")$" if_expression:expression else_clause:('$else$' else_expression:expression)? '$end$' <ConditionalTemplateNode>
-    
+  rule if_stat
+    delimiter "if(" if_clause:attribute ")" delimiter
+      if_expression:template
+    else_clause:(delimiter 'else' delimiter
+      else_expression:template)?
+    delimiter 'end' delimiter <ConditionalTemplateNode>
   end
 	
-  rule some_text
-    not_delimiter* {
+  rule text
+    not_delimiter+ {
  	    def eval(*args)
    	   to_s
    	  end
@@ -65,7 +77,7 @@ grammar Slippers
   end
 	
   rule template_path
-    anything_except_keywords {
+    id ('/' id)* {
       def to_s
         text_value
       end
@@ -82,19 +94,18 @@ grammar Slippers
       end
     }
   end
-  
-  rule word_with_underscore
-    word ("_" word)*
-  end
-  
-  rule word
-	[a-zA-Z]+ {
+
+  rule id
+    [a-zA-Z0-9_]+ {
+ 	    def eval(*args)
+   	   to_s
+   	  end
       def to_s
         text_value
       end
-      }
+    }
   end
-	
+  
   rule space
     ' '* {
         def eval(object_to_render=nil, template_group=nil)

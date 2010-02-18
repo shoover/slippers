@@ -2,7 +2,10 @@ module Slippers
   module AttributeToRenderNode
 
     def eval(object_to_render, template_group)
-      [object_to_render].flatten.inject('') { |rendered, item| rendered + render(value_of(item, template_group), template_group) }
+      strs = [object_to_render].flatten.map do |item|
+        render(value_of(item, template_group), template_group)
+      end
+      strs.join
     end
 
     def value_of(item, template_group)
@@ -95,7 +98,7 @@ module Slippers
 
     def find_attribute_and_render(item, template_group)
       object_to_render = attribute.value_of(item, template_group)
-      [object_to_render].flatten.inject('') { |rendered, i| rendered + template.apply_attribute_to_subtemplate(i, template_group).to_s }
+      [object_to_render].flatten.inject('') { |rendered, i| rendered + call.apply_attribute_to_subtemplate(i, template_group).to_s }
     end
   end
   
@@ -117,19 +120,4 @@ module Slippers
       end
   end
 
-  class TemplatedExpressionNode < Treetop::Runtime::SyntaxNode
-
-    def eval(object_to_render, template_group)
-      foo.eval(object_to_render, template_group)
-    end
-
-  end
-
-  class ExpressionNode < Treetop::Runtime::SyntaxNode
-
-    def eval(object_to_render, template_group=nil)
-      before.eval(object_to_render, template_group) + expression_to_render.eval(object_to_render, template_group) + space.eval + after.eval(object_to_render, template_group)
-    end
-
-  end
 end
