@@ -3,9 +3,7 @@ grammar Slippers
   rule template
     element* {
       def eval(object_to_render=nil, template_group=nil)
-        elements.inject('') do |rendered, item|
-          rendered + item.eval(object_to_render, template_group)
-        end
+        elements.map{|item| item.eval(object_to_render, template_group)}.join
       end
     }
   end
@@ -15,7 +13,7 @@ grammar Slippers
   end
 
   rule expr_tag
-    !("$end$" / "$else$") delimiter expr delimiter {
+    !keyword DELIM expr DELIM {
       def eval(object_to_render, template_group)
         expr.eval(object_to_render, template_group)
       end
@@ -23,163 +21,84 @@ grammar Slippers
   end
 
   rule expr
-    apply_attribute_to_template / call / expression_option / attribute
+    apply_attribute_to_template / template_ref / expression_option / attribute
   end
   
   rule apply_attribute_to_template 
-    attribute apply_op call <ApplyAttributeToTemplateNode>
+    attribute COLON template_ref <ApplyAttributeToTemplateNode>
   end
   
-  rule call
-    template_path brackets <TemplateNode> / anonymous_template
+  rule template_ref
+    template_path brackets <TemplateNode>
+    / anonymous_template <AnonymousTemplateNode>
   end
   
   rule anonymous_template
-    "{" anonymous_template_words "}" <AnonymousTemplateNode>
+    LBRACE subtemplate:(!RBRACE .)* RBRACE
   end
 	  
-  rule attribute
-  	 id <AttributeToRenderNode>
-  end
+  rule attribute ID <AttributeToRenderNode> end
   
   rule expression_option
     attribute ';'
-    space null_subtitute:('null="' nulls:anything_except_keywords '"')? (",")?
-    space separator_value:('separator="' seps:anything_except_keywords '"' )?
+    space null_subtitute:('null=' nulls:STRING)? (",")?
+    space separator_value:('separator=' seps:STRING)?
     <AttributeWithExpressionOptionNode>
   end
   
   rule if_stat
-    delimiter "if(" if_clause:attribute ")" delimiter
+    DELIM "if(" if_clause:attribute ")" DELIM
       if_expression:template
-    else_clause:(delimiter 'else' delimiter
-      else_expression:template)?
-    delimiter 'end' delimiter <ConditionalTemplateNode>
+    else_clause:(ELSE else_expression:template)?
+    END <ConditionalTemplateNode>
   end
 	
   rule text
-    not_delimiter+ {
- 	    def eval(*args)
-   	   to_s
-   	  end
-      def to_s
-        elements.inject('') {|rendered, item| rendered + item.to_s}
+    CHAROUT+ {
+      def eval(*args)
+        elements.map(&:to_s).join
       end
     }
   end
   
-  rule anonymous_template_words
-    not_curly* {
-      def to_s
-        text_value
-      end
-    }
-  end
-	
   rule template_path
-    id ('/' id)* {
-      def to_s
-        text_value
-      end
-    }
+    ID (SLASH ID)*
   end
     
-  rule anything_except_keywords
-    not_keyword* {
- 	    def eval(*args)
-   	   to_s
-   	  end
-      def to_s
-        text_value
-      end
-    }
+  rule keyword (END / ELSE) end
+
+  # Character outside of a delimited expression
+  rule CHAROUT
+    ESC delim:DELIM { def to_s; delim.text_value end }
+    / !DELIM .      { def to_s; text_value end }
   end
 
-  rule id
-    [a-zA-Z0-9_]+ {
- 	    def eval(*args)
-   	   to_s
-   	  end
-      def to_s
-        text_value
-      end
-    }
-  end
-  
-  rule space
-    ' '* {
-        def eval(object_to_render=nil, template_group=nil)
-          to_s
-        end
-        def to_s
-            text_value
-        end
-      }
-  end
-  
-  rule apply_op
-   ':' {
-      def to_s
-        text_value
-      end
-   }
-  end
-  
-  rule delimiter
-   '$' {
-      def to_s
-        text_value
-      end
-   }
-  end
-    
-  rule brackets
-   '()' {
-      def to_s
-        text_value
-      end
-   }
-  end
-  
-  rule escape 
-    '\\'
-  end
-    
-  rule not_delimiter 
-    escape delimiter {
-      def to_s
-        delimiter.text_value
-      end
-    }
-    / !delimiter . {
-      def to_s
-        text_value
-      end
-    }
+  # Character inside a delimited expression
+  rule CHARIN
+    # Interpret newline and tab escapes
+    '\n'   { def to_s; "\n" end }
+    / '\t' { def to_s; "\t" end }
+    / .    { def to_s; text_value end }
   end
 
-  rule not_apply_op 
-    !apply_op . {
-      def to_s
-        text_value
-      end
+  rule STRING
+    QUOTE chars:(!QUOTE CHARIN)* QUOTE {
+      def to_s; chars.elements.map(&:CHARIN).map(&:to_s).join end
     }
   end
   
-  rule not_keyword
-  !(apply_op / delimiter / brackets / ';' / '"' / ")" / "if" / "else" / "end" ) . {
-    def to_s
-      text_value
-    end
-  }
-  end
-  
-  rule not_curly
-    !("{" / "}") . {
-      def to_s
-        text_value
-      end
-    }
-  end
-	
+  rule space ' '* end
+  rule brackets '()' end
+
+  rule ID [a-zA-Z0-9_]+ end
+  rule QUOTE '"' end
+  rule SLASH '/' end
+  rule COLON ':' end
+  rule ELSE DELIM 'else' DELIM end
+  rule END DELIM 'end' DELIM end
+  rule DELIM '$' end
+  rule LBRACE '{' end
+  rule RBRACE '}' end
+  rule ESC '\\' end
+  rule EOF !. end
 end

@@ -86,6 +86,11 @@ describe SlippersParser do
     @parser.should parse('$list; null="-1"$').and_eval(:list => [1,nil,3]).to("1-13")
   end
   
+  it 'should render separators with special escapes' do
+    @parser.should parse('$list; separator="\n"$').and_eval(:list => [1,2,3]).to("1\n2\n3")
+    @parser.should parse('$list; separator="\n\t"$').and_eval(:list => [1,2,3]).to("1\n\t2\n\t3")
+  end
+
   it 'should conditionally parse some text' do
     @parser.should parse("$if(greeting)$ Hello $end$").and_eval(:greeting => true).to(" Hello ")
     @parser.should parse("$if(greeting)$ Hello $end$").and_eval(:greeting => false).to("")

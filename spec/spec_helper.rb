@@ -24,13 +24,14 @@ Spec::Matchers.define :parse do |input|
   match do |parser|
     @tree = parser.parse(input)
     @tree.should_not be_nil
-    @tree.eval(@obj, @group).should eql(@result)
+    @eval_result = @tree.eval(@obj, @group)
+    @eval_result.should eql(@result)
   end
   failure_message_for_should do |parser|
     if @tree.nil?
       "failed to parse \"#{input}\""
     else
-      "expected #{@tree.inspect} to evaluate #{@obj.inspect} to \"#{@result}\""
+      "expected #{@tree.inspect} to evaluate #{@obj.inspect} to \"#{@result}\", was \"#{@eval_result}\""
     end
   end
 end

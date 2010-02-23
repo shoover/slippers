@@ -1,5 +1,4 @@
 load File.expand_path(File.dirname(__FILE__) + "/tasks/spec.rake")
-#load File.expand_path(File.dirname(__FILE__) + "/tasks/git.rake")
 
 require 'rake'
 require 'spec/rake/spectask'
@@ -16,6 +15,8 @@ begin
     gem.authors = ["Sarah Taraporewalla"]
     gem.files =  FileList["[A-Z]*", "{bin,lib,spec,examples,tasks}/**/*"]
     gem.add_dependency 'treetop'
+    gem.add_development_dependency 'mocha'
+    gem.add_development_dependency 'rspec'
   end
   Jeweler::GemcutterTasks.new
 rescue LoadError
@@ -23,4 +24,3 @@ rescue LoadError
 end
 
 task :default => "spec:run"
-

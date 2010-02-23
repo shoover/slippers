@@ -4,8 +4,7 @@ module Slippers
     def eval(object_to_render, template_group)
       strs = [object_to_render].flatten.map do |item|
         render(value_of(item, template_group), template_group)
-      end
-      strs.join
+      end.join
     end
 
     def value_of(item, template_group)
@@ -62,43 +61,52 @@ module Slippers
   class TemplateNode < Treetop::Runtime::SyntaxNode
 
     def eval(object_to_render, template_group)
-      apply_attribute_to_subtemplate(object_to_render, template_group)
+      apply_attribute_to_template(object_to_render, template_group)
     end
 
-    def apply_attribute_to_subtemplate(item, template_group)
+    def apply_attribute_to_template(item, template_group)
       return invoke_misisng_handler unless template_group
-      subtemplate = template_group.find(template_path.to_s)
-      return invoke_misisng_handler(template_group.missing_handler) unless (subtemplate && subtemplate.respond_to?('render')) 
-      subtemplate.render(item)
+      template = template_group.find(template_path.text_value)
+      return invoke_misisng_handler(template_group.missing_handler) unless (template && template.respond_to?('render')) 
+      template.render(item)
     end
     
     private
       def invoke_misisng_handler(missing_handler=Slippers::Engine::MISSING_HANDLER)
-        return missing_handler.call(template_path.to_s) if missing_handler.arity == 1
+        return missing_handler.call(template_path.text_value) if missing_handler.arity == 1
         missing_handler.call
       end
   end
   
-  class AnonymousTemplateNode < Treetop::Runtime::SyntaxNode
+  module AnonymousTemplateNode
     
     def eval(object_to_render, template_group)
       apply_attribute_to_subtemplate(object_to_render, template_group)
     end
     
+    def apply_attribute_to_template(item, template_group)
+      apply_attribute_to_subtemplate(item, template_group)
+    end
+
+    private
     def apply_attribute_to_subtemplate(item, template_group)
-      SlippersParser.new.parse(anonymous_template_words.to_s).eval(item, template_group)
+      SlippersParser.new.parse(subtemplate.text_value).eval(item, template_group)
     end
   end
 
   class ApplyAttributeToTemplateNode < Treetop::Runtime::SyntaxNode
 
     def eval(object_to_render, template_group)
-      [object_to_render].flatten.inject('') { |rendered, item| rendered + find_attribute_and_render(item, template_group) }
+      [object_to_render].flatten.map do |item|
+        find_attribute_and_render(item, template_group)
+      end.join
     end
 
     def find_attribute_and_render(item, template_group)
       object_to_render = attribute.value_of(item, template_group)
-      [object_to_render].flatten.inject('') { |rendered, i| rendered + call.apply_attribute_to_subtemplate(i, template_group).to_s }
+      [object_to_render].flatten.map do |item|
+        template_ref.apply_attribute_to_template(item, template_group).to_s
+      end.join
     end
   end
   
